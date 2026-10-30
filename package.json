@@ -1,0 +1,23 @@
+{
+  "name": "cartguardian",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI purchase-evaluation agent with a two-sided Purchase Trial and PayPal Sandbox checkout.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w @cartguardian/server",
+    "dev:web": "npm run dev -w @cartguardian/web",
+    "test": "npm run test -w @cartguardian/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build -w @cartguardian/web",
+    "check": "npm run typecheck && npm test && npm run build"
+  }
+}
