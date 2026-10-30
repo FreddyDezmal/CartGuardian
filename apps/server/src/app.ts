@@ -64,7 +64,11 @@ export function createApp({ config, ai, paypal, store }: AppDeps) {
     const body: HealthResponse = {
       status: "ok",
       uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
-      ai: { provider: ai.name, configured: ai.name === "mock" || Boolean(config.ai.anthropicApiKey), model: ai.model },
+      ai: {
+        provider: ai.name,
+        configured: ai.name === "mock" || Boolean(ai.name === "gemini" ? config.ai.geminiApiKey : config.ai.anthropicApiKey),
+        model: ai.model,
+      },
       paypal: { environment: "sandbox", configured: paypal.configured },
     };
     res.json(body);

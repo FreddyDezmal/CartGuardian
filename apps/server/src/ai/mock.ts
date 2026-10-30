@@ -1,5 +1,5 @@
 import type { TrialResult } from "@cartguardian/shared";
-import type { AiAdapter, TrialRequest } from "./types.js";
+import type { AiAdapter, TrialOutcome, TrialRequest } from "./types.js";
 import { toMinorUnits } from "../money.js";
 
 /**
@@ -11,7 +11,11 @@ export class MockAdapter implements AiAdapter {
   readonly name = "mock" as const;
   readonly model = "mock-v1";
 
-  async runTrial({ input, amount, metrics }: TrialRequest): Promise<TrialResult> {
+  async runTrial(req: TrialRequest): Promise<TrialOutcome> {
+    return { trial: this.build(req), model: this.model };
+  }
+
+  private build({ input, amount, metrics }: TrialRequest): TrialResult {
     const price = `${amount.value} ${amount.currency}`;
     const priceMinor = toMinorUnits(amount.value);
     const cpuMinor = metrics.costPerUse ? toMinorUnits(metrics.costPerUse.value) : null;

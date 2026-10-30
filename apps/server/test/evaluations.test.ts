@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import type { TrialResult } from "@cartguardian/shared";
 import { buildTestApp, validInput } from "./helpers.js";
-import { AiError, type AiAdapter } from "../src/ai/types.js";
+import { AiError, type AiAdapter, type TrialOutcome } from "../src/ai/types.js";
 
 describe("GET /api/health", () => {
   it("reports provider and PayPal configuration without leaking secrets", async () => {
@@ -67,8 +67,8 @@ describe("POST /api/evaluations", () => {
     const leaky: AiAdapter = {
       name: "anthropic",
       model: "fake",
-      async runTrial(): Promise<TrialResult> {
-        return {
+      async runTrial(): Promise<TrialOutcome> {
+        const trial: TrialResult = {
           buyCase: { headline: "A no-brainer", arguments: [{ point: "This is guaranteed to save you money.", basis: "assumption" }] },
           skipCase: { headline: "Maybe not", arguments: [{ point: "Cheaper options exist.", basis: "general_knowledge" }] },
           verdict: "buy",
@@ -77,6 +77,7 @@ describe("POST /api/evaluations", () => {
           questionsBeforeBuying: [],
           unverifiedAssumptions: [],
         };
+        return { trial, model: "fake" };
       },
     };
     const { app } = buildTestApp({ ai: leaky });

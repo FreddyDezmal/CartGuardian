@@ -4,7 +4,7 @@ CartGuardian puts a purchase on trial before you pay. It argues the strongest ho
 
 Built for the PayPal AI Hackathon 2026.
 
-- **AI:** Claude (Anthropic API) via forced tool use and schema validation, behind a pluggable adapter. A labelled rule-based mock runs without any key.
+- **AI:** Google Gemini (free tier) with JSON-schema-constrained output, re-validated server-side, behind a pluggable adapter. A Claude adapter is also included, and a labelled rule-based mock runs without any key.
 - **PayPal:** Orders v2 REST API on the server (create, capture with `PayPal-Request-Id`, verification); PayPal v6 Web SDK in the browser via `@paypal/react-paypal-js/sdk-v6`. Sandbox only.
 
 ## Run it
@@ -25,7 +25,7 @@ Without credentials, the app runs with the mock AI and checkout disabled. To ena
 
 ```bash
 npm run paypal:check -w @cartguardian/server   # PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET (Sandbox)
-npm run ai:check -w @cartguardian/server       # AI_PROVIDER=anthropic, ANTHROPIC_API_KEY
+npm run ai:check -w @cartguardian/server       # AI_PROVIDER=gemini, GEMINI_API_KEY (free at aistudio.google.com)
 ```
 
 Then restart the API. In the PayPal popup, sign in with your **Sandbox Personal** account.

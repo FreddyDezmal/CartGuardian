@@ -1,12 +1,57 @@
 # CartGuardian: implementation plan
 
-Status as of **Tue 27 Oct 2026**. Submission deadline: **Thu 12 Nov 2026, 12:00 PM PST** (that is 20:00 UTC, **22:00 in Johannesburg**). Plan to submit on 11 Nov.
+Status as of **Tue 27 Oct 2026**, updated **Fri 30 Oct** (see §0). Submission deadline: **Thu 12 Nov 2026, 12:00 PM PST** (that is 20:00 UTC, **22:00 in Johannesburg**). Plan to submit on 11 Nov.
 
 How to read the labels in this document:
 
 - **Verified**: I ran it in a Linux workspace (Node 22.23, npm 10.9) and saw it work.
 - **Untested**: written against current docs and type definitions, but not run against the live service.
 - **Assumption / Recommendation**: a decision I made because the brief left it open. Change it if it's wrong.
+
+---
+
+## 0. Decisions changed on Fri 30 Oct (these override later sections)
+
+Live status on 30 Oct: the Node milestone 1 works end to end on Mohau's Windows machine against real PayPal Sandbox (CLI capture `11997660J5609872A`, UI purchase `9YY73139J5324721J` / capture `2N824363433053304`, 449.00 USD). Real AI connected the same day: Gemini `gemini-3.5-flash-lite` returned a valid trial in 4.7 s, quoted the server figures exactly and ignored the injected "guaranteed" instruction. Review found over-generous `your_input` labels and a missing "what do you pay now?" question; prompt rules 3 and 7 tightened in response.
+
+| Topic | Was | Now | Sections affected |
+|---|---|---|---|
+| Hosting | Render (suggested) | **Vercel** | §4 "not done yet", §9 Day 8 |
+| Database | In-memory, then SQLite on 31 Oct | **Supabase (Postgres)** | A4, §3 diagram, §5 essential #5 |
+| Backend language | TypeScript / Express 5 | **Unchanged.** Python was considered on 30 Oct and dropped: a port would cost 2–3 days for no judging benefit. The Python notes below are kept for after the hackathon | — |
+| AI provider | Claude (Anthropic API) | **Gemini free tier** (`AI_PROVIDER=gemini`). Default model changed to `gemini-3.5-flash-lite` on 30 Oct after a probe showed `gemini-3.8-flash` timing out on every request, even a one-word reply, while 3.5-flash-lite returned the full trial in ~3 s. Fallbacks: `gemini-3.1-flash-lite,gemini-3.5-flash`; each model gets at most 12 s while others remain, and `AI_TIMEOUT_MS` (30 s) caps the whole trial. The Anthropic account had no API credit; Gemini is free with no card, available in South Africa, and supports JSON-schema output. Free-tier prompts may be used to improve Google products, so the form now asks users to leave out personal details. Gemini ignores `maxLength`, which Zod re-validation + one repair attempt already covers. The Claude adapter stays as an option | §1, A2, §7, §10 "Tools" |
+| AI auth | — | **API key**, not identity federation: no identity provider on the dev machine, judges must run it locally, Vercel isn't one of the listed federation providers | §7 |
+
+### What stays the same
+
+Everything except hosting and the store: the Node/Express backend, React + Vite frontend, API contract, prompt and guardrails, PayPal Orders v2 flow, and every security rule in §4. Supabase plugs in behind the existing `Store` interface in `apps/server/src/store.ts`, so routes don't change.
+
+### What the move to Vercel + Supabase changes technically
+
+- **Serverless means no shared memory.** On Vercel, requests can run in different function instances, so the in-memory store and the in-process capture lock in `services/orders.ts` cannot be relied on. Postgres takes over both jobs:
+  - `orders.order_id` primary key, `orders.capture_id` unique.
+  - Capture claims the order atomically: `UPDATE orders SET status='CAPTURING' WHERE order_id=$1 AND status='CREATED' RETURNING *`. A request that gets no row back reads the existing row and replays it (or reports "in progress"). A `CAPTURING` row older than ~2 minutes is reconciled by reading the order from PayPal.
+  - The deterministic `PayPal-Request-Id: cg-capture-<orderId>` stays, as PayPal's own guard.
+- **Rate limiting** per instance in memory is also unreliable on serverless. For the hackathon, a simple Postgres-backed counter or Vercel's own firewall rules are enough. Decide on Day 8.
+- **Supabase keys.** The backend uses Supabase's server-side secret key from a Vercel environment variable. The browser never talks to Supabase directly. Enable Row Level Security on every table with no public policies, so a leaked public key can read nothing. Check the key names in the Supabase dashboard, because they have changed over time.
+- **Timeouts.** The Vercel function's maximum duration must be above `AI_TIMEOUT_MS` plus one repair attempt. Check the limit for your Vercel plan in the Functions limits docs before the deploy day.
+
+### Python backend (dropped for the hackathon)
+
+If revisited after judging: FastAPI + Pydantic + httpx, same API contract, pytest ports of all 40 scenarios before switching over. Vercel supports FastAPI with zero configuration (Python 3.12–3.14).
+
+### Schedule impact
+
+Supabase replaces the planned SQLite day, and Vercel replaces Render on deploy day, so these cost about the same time as before. The plan is one day behind because real AI slipped from 29 to 30 Oct. Anything not listed keeps the §9 plan.
+
+| Date | Goal | Proof |
+|---|---|---|
+| Fri 30 Oct | Claude key + `ai:check`; fix the font for prices (slashed zeros) | Valid trial, no "guaranteed"; prices read normally |
+| Sat 31 Oct | Trial quality: 10 fixture products, prompt tuning | No fabricated specs, no absolute claims |
+| Sun 1 Nov | Supabase project + `schema.sql` with RLS; `SupabaseStore` implementing `Store`, with DB-backed capture claim. **Working demo checkpoint** (local, real AI + Sandbox + Supabase) + backup video | Restart API between approve and capture → still captures |
+| Mon 2 Nov | Error-state polish, mobile pass | as §9 Mon 2 Nov |
+| Tue 3 Nov | Deploy to Vercel: static web + Express API, env vars, `WEB_ORIGIN` = hosted origin, check the function duration limit against `AI_TIMEOUT_MS` | Sandbox purchase on the hosted URL |
+| Wed 4 – Fri 6 Nov | Unchanged: stretch, webhooks, **feature freeze Fri 6 Nov** | as §9 |
 
 ---
 
@@ -265,9 +310,9 @@ Not done yet (planned): webhook verification (Day 7), durable idempotency across
 - ✅ A valid evaluation returns 201 with normalised amount and correct cost per use; invalid prices return 400.
 - ✅ Order creation sends the stored amount and ignores client-supplied amounts (automated test).
 - ✅ Capture is idempotent and concurrency-safe; amount mismatch is never recorded as success (automated tests).
-- ☐ UI renders the form, trial and checkout correctly in your browser.
-- ☐ `npm run paypal:check` succeeds with your Sandbox credentials.
-- ☐ A Sandbox buyer completes a purchase in the UI and the receipt shows a capture ID that also appears in the Sandbox merchant's activity.
+- ✅ UI renders the form, trial and checkout correctly in your browser (confirmed by you, 30 Oct, dark mode).
+- ✅ `npm run paypal:check` succeeds with your Sandbox credentials (confirmed by you, 30 Oct).
+- ✅ A Sandbox buyer completes a purchase in the UI (30 Oct: order 9YY73139J5324721J, capture 2N824363433053304, 449.00 USD). Still worth confirming the capture in the Business account's activity.
 - ☐ `npm run ai:check` with `AI_PROVIDER=anthropic` returns a valid trial and does not follow the injected instruction in its sample listing.
 
 ---
@@ -344,15 +389,15 @@ curl -s -X POST localhost:8787/api/evaluations -H 'Content-Type: application/jso
 5. Run the isolated check:
    ```bash
    npm run paypal:check -w @cartguardian/server
-   # ✓ OAuth token obtained and order created: 5O19... (CREATED)
-   # ✓ Order read back: status CREATED
+   # ✓ OAuth token obtained and order created: 5A43... (PAYER_ACTION_REQUIRED)
+   # ✓ Order read back: status PAYER_ACTION_REQUIRED
    # To test approval + capture manually: 1. Open https://www.sandbox.paypal.com/checkoutnow?token=...
    ```
 6. Optional full server-side loop without the UI: open the printed link, approve with the Personal account, then
    `npm run paypal:check -w @cartguardian/server -- capture <ORDER_ID>` → `✓ Capture: order COMPLETED, capture ... COMPLETED 1.00 USD`.
 7. Restart `npm run dev:server`, reload the web app, run a trial, click the PayPal button, approve with the Personal account. Confirm the capture ID in the receipt also appears in the Business account's activity at sandbox.paypal.com.
 
-*(Untested by me: step 5 onward needs your credentials and network. The approval link `rel` is read as `payer-action` or `approve`, whichever PayPal returns.)*
+*(Step 5 confirmed on your machine on 30 Oct 2026. `PAYER_ACTION_REQUIRED` is expected: the order is created with a `payment_source.paypal.experience_context`, so PayPal waits for the buyer instead of reporting `CREATED`. Steps 6–7 also confirmed on 30 Oct: CLI capture 11997660J5609872A for 1.00 USD, and a full UI purchase.)*
 
 ### AI provider (Claude)
 
@@ -386,6 +431,11 @@ How the adapter works: a single forced tool call (`tool_choice: {type: "tool", n
 | `502 AI_UPSTREAM` "model ... was not found" | Model ID typo or not available to your account | Server log | Set `ANTHROPIC_MODEL` to an ID listed in the Anthropic docs |
 | `504 AI_TIMEOUT` | Slow response or network | Server log timing | Raise `AI_TIMEOUT_MS` (max 120000); retry |
 | `503 AI_RATE_LIMITED` | Provider rate limit / low tier | Response headers in server log | Wait; lower usage; keep `AI_PROVIDER=mock` for UI work |
+| `503 AI_RATE_LIMITED` with Gemini, server log mentions `RESOURCE_EXHAUSTED` | Free-tier per-minute or daily quota used up | Server log `provider said: 429 ...`; quota page in AI Studio | Wait a minute (per-minute) or until the daily reset; keep `AI_PROVIDER=mock` for UI-only work; don't run the fixture set in a tight loop |
+| Every trial times out (`DEADLINE_EXCEEDED`) | The model isn't serving free-tier requests right now | `npm run ai:check -w @cartguardian/server -- probe [model]`: if step 1 (one word) also fails, it's the provider, not our request | Switch `GEMINI_MODEL` to a model whose probe passes; keep the busy one last in `GEMINI_FALLBACK_MODELS` or drop it |
+| Gemini `503 ... high demand` / `UNAVAILABLE` | The free model is overloaded (seen on `gemini-3.8-flash`, 30 Oct) | `ai:check` detail line | Retry later, or set `GEMINI_FALLBACK_MODELS` to other models from `npm run ai:check -w @cartguardian/server -- models`; the adapter tries them in order and records which one answered |
+| `502 AI_AUTH` with Gemini | Key typo, or key deleted in AI Studio (Gemini reports this as a 400 "API key not valid") | `npm run ai:check` prints `Provider said: ...` | Create a new key at aistudio.google.com, paste into `GEMINI_API_KEY`, restart |
+| Anthropic `400 ... credit balance is too low` | API usage is prepaid and billed separately from Claude.ai plans | `ai:check` detail line | Buy credit under Plans & Billing, or use `AI_PROVIDER=gemini` |
 | `502 AI_INVALID_OUTPUT` | Model output failed schema twice | Run `npm run ai:check` to see raw behaviour | Usually a too-strict limit; check which field failed in the log, adjust prompt or limit in `shared` |
 | `paypal:check` → `401 AUTH_FAILED ... invalid_client` | Wrong secret, Live credentials, or client ID pasted in both fields | Compare with Sandbox tab of Apps & Credentials | Copy Sandbox Client ID **and** Secret again; server refuses identical values |
 | PayPal button area: "PayPal couldn't load" | Bad/missing client ID in browser, ad blocker, offline | `curl localhost:8787/api/config` → `paypalClientId` | Set `PAYPAL_CLIENT_ID`, restart API, reload; disable blockers on localhost |

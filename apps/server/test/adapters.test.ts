@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { AnthropicAdapter, type MessagesClient } from "../src/ai/anthropic.js";
 import { buildUserMessage } from "../src/ai/prompt.js";
 import { loadConfig } from "../src/config.js";
@@ -35,7 +35,8 @@ function fakeClient(inputs: unknown[]): MessagesClient & { params: Anthropic.Mes
           type: "message",
           role: "assistant",
           model: p.model,
-          content: [{ type: "tool_use", id: `tu_${params.length}`, name: "record_purchase_trial", input }],
+          // `caller` is a response-only field, as returned by the real API
+          content: [{ type: "tool_use", id: `tu_${params.length}`, name: "record_purchase_trial", input, caller: { type: "direct" } }],
           stop_reason: "tool_use",
         } as unknown as Anthropic.Message;
       },
@@ -48,7 +49,8 @@ describe("AnthropicAdapter", () => {
     const client = fakeClient([goodTrial]);
     const adapter = new AnthropicAdapter({ model: "claude-test", timeoutMs: 5000 }, client);
     const out = await adapter.runTrial(req);
-    expect(out.verdict).toBe("buy");
+    expect(out.trial.verdict).toBe("buy");
+    expect(out.model).toBe("claude-test");
     expect(client.params[0]!.tool_choice).toEqual({ type: "tool", name: "record_purchase_trial" });
     expect(client.params[0]!.tools?.[0]).toMatchObject({ name: "record_purchase_trial", input_schema: { type: "object" } });
   });
@@ -56,10 +58,34 @@ describe("AnthropicAdapter", () => {
   it("repairs malformed output once, then succeeds", async () => {
     const client = fakeClient([{ ...goodTrial, verdict: "definitely" }, goodTrial]);
     const adapter = new AnthropicAdapter({ model: "claude-test", timeoutMs: 5000 }, client);
-    await expect(adapter.runTrial(req)).resolves.toMatchObject({ verdict: "buy" });
+    await expect(adapter.runTrial(req)).resolves.toMatchObject({ trial: { verdict: "buy" } });
     expect(client.params).toHaveLength(2);
     const lastMsg = client.params[1]!.messages.at(-1)!;
     expect(JSON.stringify(lastMsg.content)).toContain("Validation failed");
+    // the echoed assistant turn must not carry response-only fields
+    const echoed = client.params[1]!.messages.at(-2)!;
+    expect(echoed.role).toBe("assistant");
+    expect(JSON.stringify(echoed.content)).not.toContain("caller");
+  });
+
+  it("keeps the provider's explanation for a 400 without exposing it to clients", async () => {
+    const client: MessagesClient = {
+      messages: {
+        async create() {
+          throw Anthropic.APIError.generate(
+            400,
+            { type: "error", error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API." } },
+            undefined,
+            new Headers({ "request-id": "req_123" }),
+          );
+        },
+      },
+    };
+    const adapter = new AnthropicAdapter({ model: "claude-test", timeoutMs: 5000 }, client);
+    const err = await adapter.runTrial(req).catch((e) => e);
+    expect(err).toMatchObject({ name: "AiError", kind: "upstream", message: "AI provider error (400)." });
+    expect(err.detail).toContain("credit balance is too low");
+    expect(err.detail).toContain("req_123");
   });
 
   it("gives up after two invalid outputs", async () => {

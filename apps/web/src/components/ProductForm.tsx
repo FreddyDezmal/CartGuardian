@@ -103,6 +103,7 @@ export function ProductForm({ currencies, busy, onSubmit }: Props) {
         </label>
       </div>
       <p className="hint">Usage lets CartGuardian work out cost per use.</p>
+      <p className="hint">What you enter is sent to an AI provider to run the trial. Leave out personal details.</p>
 
       <button className="primary" type="submit" disabled={busy}>
         {busy ? "Running the trial…" : "Put it on trial"}

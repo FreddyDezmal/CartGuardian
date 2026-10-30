@@ -104,7 +104,7 @@ export interface ValueMetrics {
   totalExpectedUses: number | null;
 }
 
-export type AiProviderName = "mock" | "anthropic";
+export type AiProviderName = "mock" | "anthropic" | "gemini";
 
 export interface Evaluation {
   id: string;

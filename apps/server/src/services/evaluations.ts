@@ -47,13 +47,13 @@ export class EvaluationService {
     const amount = normalizeMoney(input.price, input.currency);
     const metrics = computeMetrics(input, amount);
 
-    let trial;
+    let outcome;
     try {
-      trial = await this.ai.runTrial({ input, amount, metrics });
+      outcome = await this.ai.runTrial({ input, amount, metrics });
     } catch (err) {
       throw mapAiError(err);
     }
-    const guarded = applyGuardrails(trial);
+    const guarded = applyGuardrails(outcome.trial);
 
     const evaluation: Evaluation = {
       id: randomUUID(),
@@ -63,7 +63,7 @@ export class EvaluationService {
       metrics,
       trial: guarded.trial,
       provider: this.ai.name,
-      model: this.ai.model,
+      model: outcome.model,
       policyFlags: guarded.flags,
       disclaimer: DISCLAIMER,
     };
@@ -83,17 +83,18 @@ function mapAiError(err: unknown): HttpError {
     console.error("Unexpected AI adapter error", err);
     return new HttpError(502, "AI_UPSTREAM", "The AI provider failed unexpectedly.");
   }
-  console.error(`AI error (${err.kind}): ${err.message}`);
+  console.error(`AI error (${err.kind}): ${err.message}${err.detail ? ` | provider said: ${err.detail}` : ""}`);
   switch (err.kind) {
     case "timeout":
       return new HttpError(504, "AI_TIMEOUT", "The AI provider took too long. Try again.");
     case "rate_limited":
       return new HttpError(503, "AI_RATE_LIMITED", "The AI provider is rate limiting requests. Wait a moment and retry.");
     case "auth":
-      return new HttpError(502, "AI_AUTH", "The server's AI credentials were rejected. Check ANTHROPIC_API_KEY.");
+      return new HttpError(502, "AI_AUTH", "The server's AI credentials were rejected. Check the API key in apps/server/.env.");
     case "invalid_output":
       return new HttpError(502, "AI_INVALID_OUTPUT", "The AI returned an unusable result. Try again.");
     case "upstream":
+      // err.message is our own wording; provider detail stays in the server log.
       return new HttpError(502, "AI_UPSTREAM", err.message);
   }
 }

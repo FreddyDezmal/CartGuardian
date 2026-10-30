@@ -14,10 +14,22 @@ const EnvSchema = z.object({
     .transform((s) => s.split(",").map((o) => o.trim()).filter(Boolean)),
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
 
-  AI_PROVIDER: z.enum(["mock", "anthropic"]).default("mock"),
+  AI_PROVIDER: z.enum(["mock", "anthropic", "gemini"]).default("mock"),
   ANTHROPIC_API_KEY: z.string().trim().optional(),
   ANTHROPIC_MODEL: z.string().trim().min(1).default("claude-sonnet-5-5"),
+  GEMINI_API_KEY: z.string().trim().optional(),
+  GEMINI_MODEL: z.string().trim().min(1).default("gemini-3.5-flash-lite"),
+  // Comma-separated models to try, in order, when the primary is overloaded or out of quota.
+  GEMINI_FALLBACK_MODELS: z
+    .string()
+    .default("")
+    .transform((s) => s.split(",").map((m) => m.trim()).filter(Boolean)),
+  // "default" sends no thinking setting and lets the model decide (slower).
+  GEMINI_THINKING_LEVEL: z.enum(["minimal", "low", "medium", "high", "default"]).default("low"),
+  // Total time one trial may take, across fallbacks and the repair attempt.
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
+  // Max time per Gemini model while fallbacks remain (the last model gets whatever is left).
+  GEMINI_PER_MODEL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(12000),
 
   PAYPAL_ENVIRONMENT: z.literal("sandbox").default("sandbox"),
   PAYPAL_CLIENT_ID: z.string().trim().optional(),
@@ -47,6 +59,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     );
   }
 
+  const geminiKey = nonEmpty(e.GEMINI_API_KEY);
+  if (e.AI_PROVIDER === "gemini" && !geminiKey) {
+    throw new Error(
+      "AI_PROVIDER=gemini but GEMINI_API_KEY is empty. Create a free key at aistudio.google.com and set it in apps/server/.env, or use AI_PROVIDER=mock.",
+    );
+  }
+
   const clientId = nonEmpty(e.PAYPAL_CLIENT_ID);
   const clientSecret = nonEmpty(e.PAYPAL_CLIENT_SECRET);
   if (clientId && clientSecret && clientId === clientSecret) {
@@ -61,7 +80,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     ai: {
       provider: e.AI_PROVIDER,
       anthropicApiKey: anthropicKey,
-      model: e.AI_PROVIDER === "mock" ? "mock-v1" : e.ANTHROPIC_MODEL,
+      geminiApiKey: geminiKey,
+      geminiThinkingLevel: e.GEMINI_THINKING_LEVEL,
+      geminiFallbackModels: e.GEMINI_FALLBACK_MODELS,
+      geminiPerModelTimeoutMs: e.GEMINI_PER_MODEL_TIMEOUT_MS,
+      model: e.AI_PROVIDER === "mock" ? "mock-v1" : e.AI_PROVIDER === "gemini" ? e.GEMINI_MODEL : e.ANTHROPIC_MODEL,
       timeoutMs: e.AI_TIMEOUT_MS,
     },
     paypal: {
