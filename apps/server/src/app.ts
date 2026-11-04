@@ -70,6 +70,7 @@ export function createApp({ config, ai, paypal, store }: AppDeps) {
         model: ai.model,
       },
       paypal: { environment: "sandbox", configured: paypal.configured },
+      store: store.kind,
     };
     res.json(body);
   });

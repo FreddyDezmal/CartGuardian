@@ -10,6 +10,24 @@ How to read the labels in this document:
 
 ---
 
+## Status on Tue 3 Nov
+
+- No commits between Fri 30 Oct 18:01 and Tue 3 Nov, so the weekend items (quality fixtures, Supabase, backup video) slipped. Re-planned schedule below; stretch features and webhooks are cut.
+- Built today: Supabase store with an atomic capture claim (`supabase/schema.sql`, tested on real Postgres via PGlite), Vercel deployment as one project (static web + one Express function, verified with `vercel build` 65.0.0 and Vercel's helper behaviour), `db:check` script, `docs/DEPLOY.md`. 77 automated tests.
+- Not yet verified live: Supabase from Mohau's machine, and the hosted Vercel deployment.
+
+| Date | Do | Done when |
+|---|---|---|
+| Tue 3 Nov | Supabase live (`db:check`, restart test); public GitHub repo | Capture survives an API restart mid-checkout |
+| Wed 4 Nov | Vercel deploy; rough backup video | Sandbox purchase on the hosted URL |
+| Thu 5 Nov | 10-product trial quality pass; price font (slashed zeros); error states; mobile | No mislabelled points; every error reads clearly |
+| Fri 6 Nov | **Feature freeze**; buffer | `npm run check` green |
+| Sat 7 Nov | Fresh clone following README only | Runs in under 10 min |
+| Sun 8 Nov | Devpost text + "Tools" section | Draft saved |
+| Mon 9 Nov | Final video (< 3 min) | Public on YouTube |
+| Tue 10 Nov | Bug fixes only; re-check hosted demo | Hosted flow works |
+| Wed 11 Nov | **Submit** | Devpost confirmation |
+
 ## 0. Decisions changed on Fri 30 Oct (these override later sections)
 
 Live status on 30 Oct: the Node milestone 1 works end to end on Mohau's Windows machine against real PayPal Sandbox (CLI capture `11997660J5609872A`, UI purchase `9YY73139J5324721J` / capture `2N824363433053304`, 449.00 USD). Real AI connected the same day: Gemini `gemini-3.5-flash-lite` returned a valid trial in 4.7 s, quoted the server figures exactly and ignored the injected "guaranteed" instruction. Review found over-generous `your_input` labels and a missing "what do you pay now?" question; prompt rules 3 and 7 tightened in response.

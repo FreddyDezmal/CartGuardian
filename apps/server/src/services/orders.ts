@@ -5,12 +5,15 @@ import { moneyEquals } from "../money.js";
 import type { Store } from "../store.js";
 import { PayPalApiError, type PayPalApi, type PayPalOrder } from "../paypal/client.js";
 
+/** A CAPTURING claim older than this is treated as abandoned (instance died mid-capture). */
+export const CAPTURE_CLAIM_STALE_MS = 120_000;
+
 /** PayPal order ids: uppercase alphanumerics, 1-36 chars (Orders v2 reference). */
 export const ORDER_ID_PATTERN = /^[A-Z0-9]{1,36}$/;
 
 export class OrderService {
   /** In-process lock so two simultaneous capture calls hit PayPal once. */
-  private inflight = new Map<string, Promise<OrderSummary>>();
+  private inflight = new Map<string, Promise<CaptureResponse>>();
 
   constructor(
     private readonly paypal: PayPalApi,
@@ -66,14 +69,47 @@ export class OrderService {
     const record = await this.store.getOrder(orderId);
     // Only capture orders this server created: blocks capturing arbitrary order ids.
     if (!record) throw new HttpError(404, "ORDER_NOT_FOUND", "This order was not created by CartGuardian.");
-    if (record.status === "COMPLETED") return { order: record, replayed: true };
+    if (record.status === "COMPLETED" || record.status === "PENDING") return { order: record, replayed: true };
 
+    // Same instance, same order: share the one in-flight capture.
     const existing = this.inflight.get(orderId);
-    if (existing) return { order: await existing, replayed: true };
+    if (existing) return { order: (await existing).order, replayed: true };
 
-    const p = this.doCapture(record).finally(() => this.inflight.delete(orderId));
+    const p = this.claimAndCapture(orderId).finally(() => this.inflight.delete(orderId));
     this.inflight.set(orderId, p);
-    return { order: await p, replayed: false };
+    return p;
+  }
+
+  /**
+   * Cross-instance guard: the store's atomic claim lets exactly one request
+   * (on any server instance) talk to PayPal for a given order.
+   */
+  private async claimAndCapture(orderId: string): Promise<CaptureResponse> {
+    const claimed = await this.store.claimForCapture(orderId, CAPTURE_CLAIM_STALE_MS);
+    if (!claimed) {
+      const now = await this.store.getOrder(orderId);
+      if (now?.status === "COMPLETED" || now?.status === "PENDING") return { order: now, replayed: true };
+      if (now?.status === "CAPTURING") {
+        throw new HttpError(409, "CAPTURE_IN_PROGRESS", "This payment is already being confirmed. Wait a few seconds and check again.");
+      }
+      if (now?.status === "FAILED") {
+        throw new HttpError(409, "ORDER_FAILED", "This order failed verification and can't be captured. Start a new checkout.");
+      }
+      throw new HttpError(404, "ORDER_NOT_FOUND", "This order was not created by CartGuardian.");
+    }
+
+    try {
+      return { order: await this.doCapture(claimed), replayed: false };
+    } catch (err) {
+      // verifyAndRecord marks definitive failures FAILED itself. Anything else (not yet
+      // approved, declined funding source, timeout) is retryable, so hand the order back.
+      // A retried capture reuses the same PayPal-Request-Id, so PayPal can't charge twice.
+      const after = await this.store.getOrder(orderId).catch(() => undefined);
+      if (after?.status === "CAPTURING") {
+        await this.store.releaseCapture(orderId).catch((e) => console.error(`Could not release capture claim on ${orderId}:`, e));
+      }
+      throw err;
+    }
   }
 
   async status(orderId: string): Promise<{ order: OrderSummary; paypalStatus: string | null }> {
@@ -130,7 +166,7 @@ export class OrderService {
     }
 
     if (order.status === "COMPLETED" && capture.status === "COMPLETED") {
-      const done: OrderSummary = { ...record, status: "COMPLETED", captureId: capture.id, completedAt: new Date().toISOString() };
+      const done: OrderSummary = { ...record, status: "COMPLETED", captureId: capture.id, completedAt: new Date().toISOString(), captureStartedAt: null };
       await this.store.saveOrder(done);
       return done;
     }

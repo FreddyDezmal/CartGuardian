@@ -18,6 +18,7 @@
     "test": "npm run test -w @cartguardian/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build -w @cartguardian/web",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "build:vercel": "npm run build -w @cartguardian/web && npm run build:api -w @cartguardian/server"
   }
 }

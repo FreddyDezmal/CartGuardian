@@ -121,7 +121,8 @@ export interface Evaluation {
   disclaimer: string;
 }
 
-export type OrderStatus = "CREATED" | "COMPLETED" | "PENDING" | "FAILED";
+/** CAPTURING = a server instance has claimed the order and is talking to PayPal. */
+export type OrderStatus = "CREATED" | "CAPTURING" | "COMPLETED" | "PENDING" | "FAILED";
 
 export interface OrderSummary {
   orderId: string;
@@ -131,6 +132,8 @@ export interface OrderSummary {
   captureId: string | null;
   createdAt: string;
   completedAt: string | null;
+  /** When the current capture claim was taken (CAPTURING only). */
+  captureStartedAt?: string | null;
 }
 
 export const CreateOrderBodySchema = z.object({
@@ -156,6 +159,8 @@ export interface HealthResponse {
   uptimeSeconds: number;
   ai: { provider: AiProviderName; configured: boolean; model: string };
   paypal: { environment: "sandbox"; configured: boolean };
+  /** "memory" loses data on restart and is unsafe on serverless hosts. */
+  store: "memory" | "supabase";
 }
 
 export interface PublicConfig {

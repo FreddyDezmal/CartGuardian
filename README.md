@@ -6,6 +6,8 @@ Built for the PayPal AI Hackathon 2026.
 
 - **AI:** Google Gemini (free tier) with JSON-schema-constrained output, re-validated server-side, behind a pluggable adapter. A Claude adapter is also included, and a labelled rule-based mock runs without any key.
 - **PayPal:** Orders v2 REST API on the server (create, capture with `PayPal-Request-Id`, verification); PayPal v6 Web SDK in the browser via `@paypal/react-paypal-js/sdk-v6`. Sandbox only.
+- **Data:** Supabase Postgres for evaluations and orders, with an atomic capture lock so two server instances can never capture the same order. A labelled in-memory store runs without any setup.
+- **Hosting:** one Vercel project: the React app as static files, the Express API as a single Vercel Function.
 
 ## Run it
 
@@ -26,6 +28,7 @@ Without credentials, the app runs with the mock AI and checkout disabled. To ena
 ```bash
 npm run paypal:check -w @cartguardian/server   # PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET (Sandbox)
 npm run ai:check -w @cartguardian/server       # AI_PROVIDER=gemini, GEMINI_API_KEY (free at aistudio.google.com)
+npm run db:check -w @cartguardian/server       # SUPABASE_URL / SUPABASE_SECRET_KEY, after running supabase/schema.sql
 ```
 
 Then restart the API. In the PayPal popup, sign in with your **Sandbox Personal** account.
@@ -38,6 +41,7 @@ Then restart the API. In the PayPal popup, sign in with your **Sandbox Personal*
 
 ## Docs
 
+- [`docs/DEPLOY.md`](docs/DEPLOY.md): Supabase, GitHub and Vercel setup, step by step.
 - [`docs/PLAN.md`](docs/PLAN.md): architecture, API reference, security model, troubleshooting, schedule and demo script.
 
 ## Licence
