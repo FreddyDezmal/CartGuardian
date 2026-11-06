@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { buildTestApp, FakePayPal, validInput } from "./helpers.js";
 import { PayPalApiError } from "../src/paypal/client.js";
+import { MemoryStore } from "../src/store.js";
 
 async function evaluate(app: Parameters<typeof request>[0]) {
   const res = await request(app).post("/api/evaluations").send(validInput).expect(201);
@@ -130,5 +131,77 @@ describe("orders", () => {
     await paypal.captureOrder(orderId, "out-of-band"); // captured elsewhere, our store doesn't know
     const res = await request(app).post(`/api/orders/${orderId}/capture`).expect(200);
     expect(res.body.order.status).toBe("COMPLETED");
+  });
+});
+
+describe("captures across server instances (serverless)", () => {
+  it("lets only one of two instances sharing a database capture an order", async () => {
+    const store = new MemoryStore();
+    const paypal = new FakePayPal();
+    paypal.captureDelayMs = 50;
+    // Two independent apps = two serverless instances: separate in-process locks, one shared store.
+    const a = buildTestApp({ store, paypal });
+    const b = buildTestApp({ store, paypal });
+    const evaluationId = (await request(a.app).post("/api/evaluations").send(validInput).expect(201)).body.evaluation.id;
+    const { body } = await request(a.app).post("/api/orders").send({ evaluationId }).expect(201);
+    paypal.approve(body.order.orderId);
+
+    const [ra, rb] = await Promise.all([
+      request(a.app).post(`/api/orders/${body.order.orderId}/capture`),
+      request(b.app).post(`/api/orders/${body.order.orderId}/capture`),
+    ]);
+    expect(paypal.calls.capture).toBe(1);
+    const statuses = [ra.status, rb.status].sort();
+    // The winner captures (200); the loser is told it's in progress (409) or sees the finished result (200).
+    expect(statuses[0]).toBe(200);
+    expect([200, 409]).toContain(statuses[1]);
+    const loser = ra.status === 409 ? ra : rb.status === 409 ? rb : null;
+    if (loser) expect(loser.body.error.code).toBe("CAPTURE_IN_PROGRESS");
+
+    // Afterwards, either instance replays the stored result without calling PayPal again.
+    const replay = await request(b.app).post(`/api/orders/${body.order.orderId}/capture`).expect(200);
+    expect(replay.body).toMatchObject({ replayed: true, order: { status: "COMPLETED" } });
+    expect(paypal.calls.capture).toBe(1);
+  });
+
+  it("releases the claim after a retryable failure so the buyer can try again", async () => {
+    const { app, paypal, store } = buildTestApp();
+    const evaluationId = (await request(app).post("/api/evaluations").send(validInput).expect(201)).body.evaluation.id;
+    const { body } = await request(app).post("/api/orders").send({ evaluationId }).expect(201);
+    const orderId = body.order.orderId;
+
+    await request(app).post(`/api/orders/${orderId}/capture`).expect(409); // not approved yet
+    expect((await store.getOrder(orderId))!.status).toBe("CREATED");
+
+    paypal.approve(orderId);
+    const ok = await request(app).post(`/api/orders/${orderId}/capture`).expect(200);
+    expect(ok.body.order).toMatchObject({ status: "COMPLETED", captureStartedAt: null });
+  });
+
+  it("takes over a capture claim abandoned by a crashed instance", async () => {
+    const { app, paypal, store } = buildTestApp();
+    const evaluationId = (await request(app).post("/api/evaluations").send(validInput).expect(201)).body.evaluation.id;
+    const { body } = await request(app).post("/api/orders").send({ evaluationId }).expect(201);
+    const orderId = body.order.orderId;
+    paypal.approve(orderId);
+
+    // Simulate an instance that claimed the order 5 minutes ago and died.
+    const rec = (await store.getOrder(orderId))!;
+    await store.saveOrder({ ...rec, status: "CAPTURING", captureStartedAt: new Date(Date.now() - 5 * 60_000).toISOString() });
+
+    await request(app).post(`/api/orders/${orderId}/capture`).expect(200);
+    expect(paypal.calls.capture).toBe(1);
+  });
+
+  it("reports a fresh claim held elsewhere as in progress, without calling PayPal", async () => {
+    const { app, paypal, store } = buildTestApp();
+    const evaluationId = (await request(app).post("/api/evaluations").send(validInput).expect(201)).body.evaluation.id;
+    const { body } = await request(app).post("/api/orders").send({ evaluationId }).expect(201);
+    const orderId = body.order.orderId;
+    await store.claimForCapture(orderId, 120_000); // another instance is mid-capture
+
+    const res = await request(app).post(`/api/orders/${orderId}/capture`).expect(409);
+    expect(res.body.error.code).toBe("CAPTURE_IN_PROGRESS");
+    expect(paypal.calls.capture).toBe(0);
   });
 });

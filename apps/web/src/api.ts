@@ -8,7 +8,8 @@ import type {
   PublicConfig,
 } from "@cartguardian/shared";
 
-const BASE = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "");
+// Local dev: the API runs separately on :8787. Production (Vercel): same origin, so relative /api paths.
+const BASE = (import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? "" : "http://localhost:8787")).replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(

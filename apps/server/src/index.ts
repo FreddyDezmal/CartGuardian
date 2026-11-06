@@ -1,30 +1,19 @@
-import { loadConfig } from "./config.js";
-import { createApp } from "./app.js";
-import { createAiAdapter } from "./ai/index.js";
-import { PayPalRestClient } from "./paypal/client.js";
-import { MemoryStore } from "./store.js";
+import { bootstrap } from "./bootstrap.js";
 
-let config;
+let built;
 try {
-  config = loadConfig();
+  built = bootstrap();
 } catch (err) {
   console.error((err as Error).message);
   process.exit(1);
 }
-
-const ai = createAiAdapter(config.ai);
-const paypal = new PayPalRestClient({
-  baseUrl: config.paypal.baseUrl,
-  clientId: config.paypal.clientId,
-  clientSecret: config.paypal.clientSecret,
-  timeoutMs: config.paypal.timeoutMs,
-});
-const app = createApp({ config, ai, paypal, store: new MemoryStore() });
+const { app, config, ai, paypal, store } = built;
 
 const server = app.listen(config.port, () => {
   console.log(`CartGuardian API listening on http://localhost:${config.port}`);
   console.log(`  AI provider : ${ai.name} (${ai.model})${ai.name === "mock" ? "  <- MOCK: evaluations are rule-based" : ""}`);
   console.log(`  PayPal      : sandbox, ${paypal.configured ? "credentials loaded" : "NOT CONFIGURED (checkout disabled)"}`);
+  console.log(`  Database    : ${store.kind === "supabase" ? `Supabase (${config.supabase?.url})` : "in-memory (lost on restart)"}`);
   console.log(`  CORS origins: ${config.webOrigins.join(", ")}`);
 });
 

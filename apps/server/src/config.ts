@@ -36,6 +36,12 @@ const EnvSchema = z.object({
   PAYPAL_CLIENT_SECRET: z.string().trim().optional(),
   PAYPAL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(15000),
 
+  // Supabase (Postgres). When both are set, the API uses the database instead of memory.
+  SUPABASE_URL: z.string().trim().optional(),
+  SUPABASE_SECRET_KEY: z.string().trim().optional(),
+  // Set automatically by Vercel at build and run time.
+  VERCEL: z.string().optional(),
+
   RATE_LIMIT_EVALUATIONS_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(10),
   RATE_LIMIT_ORDERS_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(20),
 });
@@ -64,6 +70,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     throw new Error(
       "AI_PROVIDER=gemini but GEMINI_API_KEY is empty. Create a free key at aistudio.google.com and set it in apps/server/.env, or use AI_PROVIDER=mock.",
     );
+  }
+
+  const supabaseUrl = nonEmpty(e.SUPABASE_URL);
+  const supabaseKey = nonEmpty(e.SUPABASE_SECRET_KEY);
+  if (Boolean(supabaseUrl) !== Boolean(supabaseKey)) {
+    throw new Error("Set both SUPABASE_URL and SUPABASE_SECRET_KEY, or neither (in-memory store).");
+  }
+  if (supabaseUrl && !/^https:\/\/[^/]+$/.test(supabaseUrl.replace(/\/$/, ""))) {
+    throw new Error("SUPABASE_URL should look like https://<project-ref>.supabase.co");
+  }
+  if (supabaseKey && /^sb_publishable_/.test(supabaseKey)) {
+    throw new Error("SUPABASE_SECRET_KEY is a publishable key. Use the secret key (sb_secret_...) from Settings > API Keys.");
+  }
+  if (e.VERCEL && !supabaseUrl) {
+    // Requests can land on different instances on Vercel, so memory would lose orders between create and capture.
+    throw new Error("Running on Vercel without a database. Set SUPABASE_URL and SUPABASE_SECRET_KEY in the Vercel project settings.");
   }
 
   const clientId = nonEmpty(e.PAYPAL_CLIENT_ID);
@@ -96,6 +118,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       configured: Boolean(clientId && clientSecret),
       timeoutMs: e.PAYPAL_TIMEOUT_MS,
     },
+    supabase: supabaseUrl && supabaseKey ? { url: supabaseUrl.replace(/\/$/, ""), secretKey: supabaseKey } : null,
     rateLimits: {
       evaluationsPerMinute: e.RATE_LIMIT_EVALUATIONS_PER_MINUTE,
       ordersPerMinute: e.RATE_LIMIT_ORDERS_PER_MINUTE,

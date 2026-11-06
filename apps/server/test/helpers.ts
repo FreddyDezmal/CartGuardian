@@ -2,7 +2,7 @@ import { loadConfig } from "../src/config.js";
 import { createApp } from "../src/app.js";
 import { MockAdapter } from "../src/ai/mock.js";
 import type { AiAdapter } from "../src/ai/types.js";
-import { MemoryStore } from "../src/store.js";
+import { MemoryStore, type Store } from "../src/store.js";
 import { PayPalApiError, type CreateOrderParams, type PayPalApi, type PayPalOrder } from "../src/paypal/client.js";
 
 /**
@@ -69,10 +69,10 @@ export class FakePayPal implements PayPalApi {
   }
 }
 
-export function buildTestApp(opts: { ai?: AiAdapter; paypal?: FakePayPal; env?: Record<string, string> } = {}) {
+export function buildTestApp(opts: { ai?: AiAdapter; paypal?: FakePayPal; store?: Store; env?: Record<string, string> } = {}) {
   const config = loadConfig({ NODE_ENV: "test", AI_PROVIDER: "mock", RATE_LIMIT_EVALUATIONS_PER_MINUTE: "100", RATE_LIMIT_ORDERS_PER_MINUTE: "100", ...opts.env });
   const paypal = opts.paypal ?? new FakePayPal();
-  const store = new MemoryStore();
+  const store = opts.store ?? new MemoryStore();
   const app = createApp({ config, ai: opts.ai ?? new MockAdapter(), paypal, store });
   return { app, paypal, store, config };
 }
