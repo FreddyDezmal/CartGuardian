@@ -113,6 +113,19 @@ The importer fetches store pages from Vercel's servers (US data centres by defau
 npm run import:check -w @cartguardian/server -- "https://www.takealot.com/<product>/PLID12345678"
 ```
 
+**Stores tested on the hosted app (10 Nov 2026).** Product pages change; re-test a link before recording.
+
+| Store | Example link | Result |
+|---|---|---|
+| Ridge (USD) | `https://ridge.com/products/heritage` | Name, price $150, image, description; **pays through PayPal**: the demo pick |
+| Fellow (USD) | `https://fellowproducts.com/products/staggekg` | Every field, $199.95 (default colour showed "sold out") |
+| Espresso Parts (USD) | `https://www.espressoparts.com/products/fellow-stagg-pour-over-kettle-matte-black-fellow1043` | Every field, $89.95 |
+| Checkers (ZAR) | a product page ending in `/p/<number>EA` | Every field |
+| Evetech, Computer Mania, Faithful to Nature (ZAR) | product pages | All but category |
+| Loot (ZAR) | `/product/...` pages | Name, description, price |
+| Takealot | any | Refused: pages carry no product data, and the data feed is behind a Cloudflare robot check |
+| Dick's Sporting Goods, Allbirds | — | Refused (no product data / page over 2 MB) |
+
 PayPal can't take payments in South African rand. Takealot imports come in as ZAR, which CartGuardian can evaluate, but checkout is offered only in USD, EUR, GBP, CAD or AUD. For the demo payment, change the currency and price before running the trial.
 
 ## If something fails

@@ -142,6 +142,15 @@ describe("ProductImportService", () => {
     await expect(run).rejects.toThrow(/Takealot didn't include the product's details.*enter the details yourself/);
   });
 
+  it("refuses a product link that redirects to the store's home page (seen live on iStore, 10 Nov)", async () => {
+    // A discontinued product: the store redirects to its home page, whose <title> is the store's slogan.
+    const fetcher = fixtureFetcher("generic-home-shell.html", "https://shop.example/");
+    await expect(new ProductImportService({ fetchPage: fetcher }).import({ url: "https://shop.example/sony-headphones-black" })).rejects.toMatchObject({
+      code: "IMPORT_PRODUCT_UNAVAILABLE",
+      status: 422,
+    });
+  });
+
   it("refuses any store's page that declares itself the home page", async () => {
     const x = extractProduct(fixture("generic-home-shell.html"), new URL("https://shop.example/products/lamp"));
     expect(x.isSiteShell).toBe(true);
