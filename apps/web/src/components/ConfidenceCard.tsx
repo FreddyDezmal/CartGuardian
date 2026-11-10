@@ -88,17 +88,20 @@ export function ConfidenceCard({ evaluation, beam }: { evaluation: Evaluation; b
         </div>
       )}
 
-      <p className="cc-label">AI assessment</p>
-      <div className="cc-sides">
-        <Points title="In its favour" points={s.positives} className="cc-for" />
-        <Points title="Watch out for" points={s.warnings} className="cc-against" />
+      <div className="cc-ai">
+        <p className="cc-label">AI assessment</p>
+        <div className="cc-sides">
+          <Points title="In its favour" points={s.positives} className="cc-for" />
+          <Points title="Watch out for" points={s.warnings} className="cc-against" />
+        </div>
+        {s.hiddenCount > 0 && (
+          <p className="cc-more muted">
+            {s.hiddenCount} more {s.hiddenCount === 1 ? "point" : "points"} in the full trial below.
+          </p>
+        )}
       </div>
-      {s.hiddenCount > 0 && (
-        <p className="cc-more muted">
-          {s.hiddenCount} more {s.hiddenCount === 1 ? "point" : "points"} in the full trial below.
-        </p>
-      )}
 
+      <div className="cc-lower">
       {s.unknowns.length > 0 && (
         <div className="cc-unknown">
           <h3>Still unknown</h3>
@@ -117,6 +120,7 @@ export function ConfidenceCard({ evaluation, beam }: { evaluation: Evaluation; b
             <li key={i}>{n}</li>
           ))}
         </ol>
+      </div>
       </div>
 
       <p className="cc-note">

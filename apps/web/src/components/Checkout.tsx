@@ -7,6 +7,7 @@ import {
 } from "@paypal/react-paypal-js/sdk-v6";
 import type { Evaluation, OrderSummary } from "@cartguardian/shared";
 import { api, ApiError } from "../api";
+import { LogoMark } from "./Logo";
 
 type State =
   | { kind: "idle" }
@@ -80,10 +81,27 @@ export function Checkout({
   const [state, setState] = useState<State>({ kind: "idle" });
   const price = new Intl.NumberFormat(undefined, { style: "currency", currency: evaluation.amount.currency }).format(Number(evaluation.amount.value));
 
+  const image = evaluation.product?.imageUrl;
+  const summary = (
+    <div className="co-summary">
+      {image ? <img src={image} alt="" referrerPolicy="no-referrer" loading="lazy" /> : <span className="co-ph" aria-hidden="true"><LogoMark size={26} /></span>}
+      <div>
+        <p className="co-name">{evaluation.productName}</p>
+        <p className="co-lock">Price locked to this evaluation</p>
+      </div>
+      <p className="co-price num">{price}</p>
+    </div>
+  );
+
   if (state.kind === "done") {
     return (
       <section className="checkout success" role="status">
-        <h2>Purchased in PayPal Sandbox</h2>
+        <div className="success-head">
+          <svg className="success-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6.5 12.5 3.5 3.5 7.5-8" />
+          </svg>
+          <h2>Purchased in PayPal Sandbox</h2>
+        </div>
         <p>
           {price} captured for {evaluation.productName}. The server confirmed the order with PayPal before recording it.
         </p>
@@ -101,10 +119,13 @@ export function Checkout({
     <section className="checkout">
       <div className="checkout-head">
         <h2>Decided to buy?</h2>
-        {paypalCurrencies.includes(evaluation.amount.currency) && (
-          <p>Pay {price} with PayPal Sandbox. The amount is locked to the price on trial.</p>
+        {paypalCurrencies.includes(evaluation.amount.currency) ? (
+          <p>Pay with PayPal Sandbox. Our server sets the amount from this evaluation, so it can't change on the way.</p>
+        ) : (
+          <p>Evaluation works in {evaluation.amount.currency}. Checkout doesn't.</p>
         )}
       </div>
+      {summary}
 
       {!paypalCurrencies.includes(evaluation.amount.currency) ? (
         <p className="notice">
@@ -122,7 +143,12 @@ export function Checkout({
         </PayPalProvider>
       )}
 
-      {state.kind === "capturing" && <p className="muted" role="status">Confirming payment with PayPal…</p>}
+      {state.kind === "capturing" && (
+        <p className="co-status" role="status">
+          <span className="spinner" aria-hidden="true" />
+          Confirming payment with PayPal…
+        </p>
+      )}
       {state.kind === "pending" && (
         <p className="notice" role="status">PayPal is holding this payment for review (order {state.order.orderId}). It isn't complete yet.</p>
       )}
