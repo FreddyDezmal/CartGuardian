@@ -4,6 +4,7 @@ import { api, ApiError } from "./api";
 import { ProductForm } from "./components/ProductForm";
 import { TrialView } from "./components/TrialView";
 import { Checkout } from "./components/Checkout";
+import { About, Hero, HowItWorks, SiteFooter, SiteNav, Transparency } from "./components/Landing";
 
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -40,46 +41,70 @@ export function App() {
   }
 
   return (
-    <div className="shell">
-      <header className="top">
-        <h1 className="wordmark">CartGuardian</h1>
-        <p className="tagline">Put a purchase on trial before you pay.</p>
-        {health && (
-          <ul className="status" aria-label="Service status">
-            <li className={health.ai.provider === "mock" ? "warn" : "ok"}>AI: {health.ai.provider === "mock" ? "mock adapter" : health.ai.model}</li>
-            <li className={health.paypal.configured ? "ok" : "warn"}>PayPal Sandbox: {health.paypal.configured ? "ready" : "not configured"}</li>
-          </ul>
-        )}
-      </header>
+    <>
+      <a className="skip" href="#evaluate">
+        Skip to the evaluator
+      </a>
+      <SiteNav />
+      <div className="page">
+        <Hero />
+        <HowItWorks />
+        <Transparency />
 
-      {bootError && <p className="err boot" role="alert">{bootError}</p>}
-
-      <main className="layout">
-        <ProductForm
-          currencies={config?.currencies ?? SUPPORTED_CURRENCIES}
-          maxPriceByCurrency={config?.maxPriceByCurrency}
-          busy={busy}
-          onSubmit={run}
-        />
-        <div className="results">
-          {error && <p className="err" role="alert">{error}</p>}
-          {evaluation ? (
-            <>
-              <TrialView key={evaluation.id} evaluation={evaluation} />
-              <Checkout
-                key={`co-${evaluation.id}`}
-                evaluation={evaluation}
-                clientId={config?.paypalClientId ?? null}
-                paypalCurrencies={config?.paypalCurrencies ?? PAYPAL_CURRENCIES}
-              />
-            </>
-          ) : (
-            <div className="empty">
-              <p>Paste a product link or describe a purchase, and CartGuardian argues both sides: why it could be worth it, and why you might hold off. Then you decide, and can pay with PayPal Sandbox.</p>
+        <section className="section app" id="evaluate" aria-labelledby="evaluate-title">
+          <div className="app-head">
+            <div>
+              <h2 id="evaluate-title" className="section-title">Evaluate a purchase</h2>
+              <p className="muted">Import a product or describe it, then put it on trial.</p>
             </div>
-          )}
-        </div>
-      </main>
-    </div>
+            {health && (
+              <ul className="status" aria-label="Service status">
+                <li className={health.ai.provider === "mock" ? "warn" : "ok"}>AI: {health.ai.provider === "mock" ? "demo rules" : health.ai.model}</li>
+                <li className={health.paypal.configured ? "ok" : "warn"}>PayPal Sandbox: {health.paypal.configured ? "ready" : "off"}</li>
+              </ul>
+            )}
+          </div>
+
+          {bootError && <p className="err boot" role="alert">{bootError}</p>}
+
+          <div className="layout">
+            <ProductForm
+              currencies={config?.currencies ?? SUPPORTED_CURRENCIES}
+              maxPriceByCurrency={config?.maxPriceByCurrency}
+              busy={busy}
+              onSubmit={run}
+            />
+            <div className="results">
+              {error && <p className="err" role="alert">{error}</p>}
+              {busy && !evaluation && <div className="thinking" role="status">Putting it on trial: weighing both sides…</div>}
+              {evaluation ? (
+                <>
+                  <TrialView key={evaluation.id} evaluation={evaluation} />
+                  <Checkout
+                    key={`co-${evaluation.id}`}
+                    evaluation={evaluation}
+                    clientId={config?.paypalClientId ?? null}
+                    paypalCurrencies={config?.paypalCurrencies ?? PAYPAL_CURRENCIES}
+                  />
+                </>
+              ) : (
+                !busy && (
+                  <div className="empty">
+                    <p className="empty-title">Your evaluation appears here.</p>
+                    <p>
+                      CartGuardian argues both sides, works out the real cost, and lists what to check before you pay. If you decide
+                      to buy, you can pay with PayPal Sandbox at the price you evaluated.
+                    </p>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        </section>
+
+        <About />
+      </div>
+      <SiteFooter />
+    </>
   );
 }

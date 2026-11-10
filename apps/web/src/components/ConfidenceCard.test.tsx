@@ -68,7 +68,7 @@ describe("Trial view keeps the existing evaluation details", () => {
     expect(t).toContain("Safety check: Removed an absolute claim");
     expect(t).toContain(ev.disclaimer);
     expect(html).toContain('href="https://shop.example/p/1"');
-    expect(html).toContain('role="img"'); // the balance beam
+    expect(t).toMatch(/449[.,]00/); // the price the trial used, shown with the product (format follows the locale)
   });
 
   it("still renders when the trial is missing parts", () => {

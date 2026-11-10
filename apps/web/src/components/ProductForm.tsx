@@ -25,7 +25,7 @@ type Mode = "link" | "manual";
 type ImportStatus =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "done"; retailer: string; missing: string[]; warnings: string[] }
+  | { kind: "done"; retailer: string; supported: boolean; missing: string[]; warnings: string[] }
   | { kind: "error"; message: string };
 
 const EXAMPLE: Partial<Fields> = {
@@ -68,7 +68,7 @@ export function ProductForm({ currencies, maxPriceByCurrency = MAX_PRICE_BY_CURR
       setState((s) => applyImport(s, res, currencies).state);
       setImageBroken(false);
       const { missing, warnings } = importMessages(res, currencies);
-      setStatus({ kind: "done", retailer: res.product.retailer ?? res.retailer.name, missing, warnings });
+      setStatus({ kind: "done", retailer: res.product.retailer ?? res.retailer.name, supported: res.retailer.supported, missing, warnings });
     } catch (err) {
       // The form is untouched on failure, so the user can carry on manually.
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "The import didn't work. You can enter the details yourself below." });
@@ -97,13 +97,13 @@ export function ProductForm({ currencies, maxPriceByCurrency = MAX_PRICE_BY_CURR
   return (
     <section className="form" aria-label="Product details">
       <div className="form-head">
-        <h2>What are you thinking of buying?</h2>
+        <h3>What are you thinking of buying?</h3>
         <div className="modes" role="group" aria-label="How to add the product">
           <button type="button" className="mode" aria-pressed={mode === "link"} onClick={() => setMode("link")}>
-            Import from a link
+            Import a link
           </button>
           <button type="button" className="mode" aria-pressed={mode === "manual"} onClick={() => setMode("manual")}>
-            Enter product manually
+            Enter manually
           </button>
         </div>
       </div>
@@ -112,6 +112,7 @@ export function ProductForm({ currencies, maxPriceByCurrency = MAX_PRICE_BY_CURR
         <form className="import" onSubmit={runImport} noValidate>
           <label className="field">
             <span>Product link</span>
+            <span className="field-help">Paste a product link. We'll retrieve the available product details.</span>
             <div className="import-row">
               <input
                 type="url"
@@ -122,19 +123,27 @@ export function ProductForm({ currencies, maxPriceByCurrency = MAX_PRICE_BY_CURR
                 maxLength={LIMITS.url.max}
                 aria-describedby="import-status"
               />
-              <button className="secondary" type="submit" disabled={status.kind === "loading"}>
+              <button className="btn btn-secondary" type="submit" disabled={status.kind === "loading"}>
                 {status.kind === "loading" ? "Importing…" : "Import product"}
               </button>
             </div>
           </label>
           <div id="import-status" aria-live="polite">
-            {status.kind === "loading" && <p className="muted import-msg">Reading the product page…</p>}
+            {status.kind === "loading" && (
+              <p className="import-msg loading">
+                <span className="spinner" aria-hidden="true" />
+                Reading the product page…
+              </p>
+            )}
             {status.kind === "done" && (
-              <div className={`import-msg ${status.missing.length ? "partial" : "ok"}`}>
+              <div className={`import-msg ${status.missing.length ? "partial" : status.supported ? "ok" : "unsupported"}`}>
+                <p className="import-msg-title">
+                  {status.missing.length ? `Partly imported from ${status.retailer}` : `Imported from ${status.retailer}`}
+                </p>
                 <p>
                   {status.missing.length
-                    ? `Imported from ${status.retailer}, but the page didn't include: ${status.missing.join(", ")}. Fill those in below.`
-                    : `Imported from ${status.retailer}. Check each field before running the trial.`}
+                    ? `The page didn't include: ${status.missing.join(", ")}. Fill those in below.`
+                    : "Check each field before running the trial."}
                 </p>
                 {status.warnings.length > 0 && (
                   <ul>
@@ -147,9 +156,10 @@ export function ProductForm({ currencies, maxPriceByCurrency = MAX_PRICE_BY_CURR
             )}
             {status.kind === "error" && (
               <div className="import-msg failed" role="alert">
+                <p className="import-msg-title">Couldn't import that link</p>
                 <p>{status.message}</p>
                 <button type="button" className="link" onClick={() => setMode("manual")}>
-                  Enter product manually
+                  Enter the details manually
                 </button>
               </div>
             )}
@@ -257,10 +267,12 @@ export function ProductForm({ currencies, maxPriceByCurrency = MAX_PRICE_BY_CURR
             <input type="number" min={1} max={LIMITS.lifetimeMonths.max} value={f.lifetimeMonths} onChange={set("lifetimeMonths")} placeholder="24" />
           </label>
         </div>
-        <p className="hint">Usage lets CartGuardian work out cost per use.</p>
-        <p className="hint">What you enter is sent to an AI provider to run the trial. Leave out personal details.</p>
+        <div className="hints">
+          <p className="hint">Usage lets CartGuardian work out cost per use.</p>
+          <p className="hint">What you enter is sent to an AI provider to run the trial. Leave out personal details.</p>
+        </div>
 
-        <button className="primary" type="submit" disabled={busy}>
+        <button className="btn btn-primary primary" type="submit" disabled={busy}>
           {busy ? "Running the trial…" : "Put it on trial"}
         </button>
       </form>
