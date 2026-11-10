@@ -7,12 +7,12 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cartguardian/shared": "0.1.0",
     "@paypal/react-paypal-js": "^10.6.1",
-    "@rolldown/binding-win32-x64-msvc": "^1.2.16",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
@@ -21,6 +21,10 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.1.2",
     "typescript": "~6.0.3",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.2.16"
   }
 }

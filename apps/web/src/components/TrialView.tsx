@@ -38,6 +38,34 @@ function Beam({ tilt }: { tilt: number }) {
   );
 }
 
+/** What is on trial, with where it came from when the user imported it. */
+function ProductLine({ evaluation }: { evaluation: Evaluation }) {
+  const p = evaluation.product;
+  const [imageOk, setImageOk] = useState(true);
+  return (
+    <div className="on-trial">
+      {p?.imageUrl && imageOk && <img src={p.imageUrl} alt="" referrerPolicy="no-referrer" loading="lazy" onError={() => setImageOk(false)} />}
+      <div>
+        <p className="on-trial-name">{evaluation.productName}</p>
+        {(p?.brand || p?.retailer) && (
+          <p className="muted">
+            {p.brand}
+            {p.brand && p.retailer && " · "}
+            {p.retailer &&
+              (p.sourceUrl ? (
+                <a href={p.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  {p.retailer}
+                </a>
+              ) : (
+                p.retailer
+              ))}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TrialView({ evaluation }: { evaluation: Evaluation }) {
   const { trial, metrics, amount } = evaluation;
   const v = VERDICT[trial.verdict];
@@ -49,6 +77,8 @@ export function TrialView({ evaluation }: { evaluation: Evaluation }) {
           Demo evaluation from the rule-based mock adapter. Connect an AI provider for a reasoned trial.
         </p>
       )}
+
+      <ProductLine evaluation={evaluation} />
 
       <div className="verdict">
         <Beam tilt={v.tilt} />

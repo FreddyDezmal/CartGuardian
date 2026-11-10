@@ -10,6 +10,14 @@ How to read the labels in this document:
 
 ---
 
+## Status on Tue 10 Nov
+
+- GitHub `main` (a2ab9de, 6 Nov) had the Supabase/Vercel work plus a Windows build fix that **broke `npm ci` on Linux, so Vercel builds failed**. Fixed by moving `@rolldown/binding-win32-x64-msvc` to `optionalDependencies`; verified with `npm ci` and `vercel build` 65.0.0 on Linux.
+- Added **product link import** (`POST /api/products/import`): Takealot adapter + generic fallback, JSON-LD / Open Graph / product meta / microdata extraction, SSRF-guarded fetch, linear-time parser (a hostile 2 MB page went from 14.6 s to 20 ms after rewriting the parser), import/manual toggle with Imported/Edited tags. 176 automated tests.
+- **ZAR is evaluation-only**: PayPal doesn't support rand as a payment currency, so checkout explains this instead of offering PayPal.
+- **Checked live on 10 Nov — Takealot cannot be imported automatically.** Product pages are an empty JavaScript shell (site-wide title only, no product data), and the product feed the shell loads (api.takealot.com product-details, allowed by robots.txt) answers automated requests with a Cloudflare robot check. Getting past that would break the brief's no-anti-bot-bypass rule, so the importer refuses Takealot pages with a clear message and the user enters the details manually. Import works for stores whose pages carry product data (JSON-LD or Open Graph).
+- Deadline Thu 12 Nov 22:00 SAST. Remaining: push, deploy, record video, submit.
+
 ## Status on Tue 3 Nov
 
 - No commits between Fri 30 Oct 18:01 and Tue 3 Nov, so the weekend items (quality fixtures, Supabase, backup video) slipped. Re-planned schedule below; stretch features and webhooks are cut.

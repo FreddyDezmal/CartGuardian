@@ -7,6 +7,7 @@ Built for the PayPal AI Hackathon 2026.
 - **AI:** Google Gemini (free tier) with JSON-schema-constrained output, re-validated server-side, behind a pluggable adapter. A Claude adapter is also included, and a labelled rule-based mock runs without any key.
 - **PayPal:** Orders v2 REST API on the server (create, capture with `PayPal-Request-Id`, verification); PayPal v6 Web SDK in the browser via `@paypal/react-paypal-js/sdk-v6`. Sandbox only.
 - **Data:** Supabase Postgres for evaluations and orders, with an atomic capture lock so two server instances can never capture the same order. A labelled in-memory store runs without any setup.
+- **Product link import:** paste a product link (Takealot first; other stores best-effort) and the form fills with what the page's structured data says: name, price, currency, image, brand, category. Every field stays editable, and manual entry works without any link. Pages are fetched server-side through an SSRF-guarded client (public addresses only, re-checked on every redirect, size and time limits).
 - **Hosting:** one Vercel project: the React app as static files, the Express API as a single Vercel Function.
 
 ## Run it
@@ -29,6 +30,8 @@ Without credentials, the app runs with the mock AI and checkout disabled. To ena
 npm run paypal:check -w @cartguardian/server   # PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET (Sandbox)
 npm run ai:check -w @cartguardian/server       # AI_PROVIDER=gemini, GEMINI_API_KEY (free at aistudio.google.com)
 npm run db:check -w @cartguardian/server       # SUPABASE_URL / SUPABASE_SECRET_KEY, after running supabase/schema.sql
+npm run import:check -w @cartguardian/server -- "https://www.takealot.com/.../PLID12345678"   # what a real product page gives the importer
+npm run import:check -w @cartguardian/server -- "<link>" --save takealot.import.html   # also save the raw page (git-ignored) to debug an adapter
 ```
 
 Then restart the API. In the PayPal popup, sign in with your **Sandbox Personal** account.
