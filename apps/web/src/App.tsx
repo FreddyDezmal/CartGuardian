@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SUPPORTED_CURRENCIES, type Evaluation, type EvaluationInput, type HealthResponse, type PublicConfig } from "@cartguardian/shared";
+import { PAYPAL_CURRENCIES, SUPPORTED_CURRENCIES, type Evaluation, type EvaluationInput, type HealthResponse, type PublicConfig } from "@cartguardian/shared";
 import { api, ApiError } from "./api";
 import { ProductForm } from "./components/ProductForm";
 import { TrialView } from "./components/TrialView";
@@ -55,17 +55,27 @@ export function App() {
       {bootError && <p className="err boot" role="alert">{bootError}</p>}
 
       <main className="layout">
-        <ProductForm currencies={config?.currencies ?? SUPPORTED_CURRENCIES} busy={busy} onSubmit={run} />
+        <ProductForm
+          currencies={config?.currencies ?? SUPPORTED_CURRENCIES}
+          maxPriceByCurrency={config?.maxPriceByCurrency}
+          busy={busy}
+          onSubmit={run}
+        />
         <div className="results">
           {error && <p className="err" role="alert">{error}</p>}
           {evaluation ? (
             <>
               <TrialView key={evaluation.id} evaluation={evaluation} />
-              <Checkout key={`co-${evaluation.id}`} evaluation={evaluation} clientId={config?.paypalClientId ?? null} />
+              <Checkout
+                key={`co-${evaluation.id}`}
+                evaluation={evaluation}
+                clientId={config?.paypalClientId ?? null}
+                paypalCurrencies={config?.paypalCurrencies ?? PAYPAL_CURRENCIES}
+              />
             </>
           ) : (
             <div className="empty">
-              <p>Describe a purchase and CartGuardian argues both sides: why it could be worth it, and why you might hold off. Then you decide, and can pay with PayPal Sandbox.</p>
+              <p>Paste a product link or describe a purchase, and CartGuardian argues both sides: why it could be worth it, and why you might hold off. Then you decide, and can pay with PayPal Sandbox.</p>
             </div>
           )}
         </div>

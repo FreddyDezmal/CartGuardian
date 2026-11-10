@@ -12,7 +12,8 @@
     "paypal:check": "tsx --env-file-if-exists=.env scripts/paypal-check.ts",
     "ai:check": "tsx --env-file-if-exists=.env scripts/ai-check.ts",
     "build:api": "esbuild src/vercel.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/vercel.mjs --log-level=warning --banner:js=\"import { createRequire as __cgCreateRequire } from 'node:module'; const require = __cgCreateRequire(import.meta.url);\"",
-    "db:check": "tsx --env-file-if-exists=.env scripts/db-check.ts"
+    "db:check": "tsx --env-file-if-exists=.env scripts/db-check.ts",
+    "import:check": "tsx --env-file-if-exists=.env scripts/import-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

@@ -75,23 +75,54 @@ Devpost requires a **public** repo with a visible open-source licence.
    | `SUPABASE_SECRET_KEY` | from Part 1 |
    | `TRUST_PROXY` | `1` |
    | `NODEJS_HELPERS` | `0` |
-   | `WEB_ORIGIN` | leave out for now (set in step 5) |
+   | `WEB_ORIGIN` | leave out: each deployment allows its own Vercel addresses automatically. Add it only for a custom domain |
 
 4. **Deploy.** The first build takes a couple of minutes.
-5. Copy the production URL (e.g. `https://cartguardian-xyz.vercel.app`, shown under **Domains**). Add it as `WEB_ORIGIN` (no trailing slash), then **Deployments → ⋯ → Redeploy**. Environment variables only apply to new deployments.
+5. Copy the production URL (e.g. `https://cartguardian-xyz.vercel.app`, shown under **Domains**). Nothing to set: the API reads Vercel's own `VERCEL_URL`, `VERCEL_BRANCH_URL` and `VERCEL_PROJECT_PRODUCTION_URL` and accepts requests from those pages. (This needs **Settings → Environment Variables → Automatically expose System Environment Variables** left on, which is Vercel's default.)
 6. Checks, in order:
    - `https://<your-url>/api/health` → JSON with `"store":"supabase"`, `"paypal":{"configured":true}` and your Gemini model.
    - Open `https://<your-url>`. Both header pills show the real setup.
    - Run a trial, then complete a Sandbox purchase with the **Personal** sandbox account. You should get the green receipt.
    - The order appears in Supabase **Table Editor → orders** as `COMPLETED`.
 
+## Deploying a branch other than `main`
+
+Vercel builds **every pushed branch**. `main` becomes **Production**; any other branch (e.g. `fred`, `tee`) becomes a **Preview** with its own addresses:
+
+- a stable one per branch: `https://<project>-git-<branch>-<team>.vercel.app` (always the branch's latest push)
+- a unique one per push: `https://<project>-<hash>-<team>.vercel.app`
+
+Find them in **Deployments** (filter by branch) or on the GitHub pull request, where Vercel comments the link.
+
+1. **Preview needs its own variables.** Vercel stores each variable per environment. In **Settings → Environment Variables**, every variable in the Part 3 table must have **Preview** ticked as well as Production. Without them a preview build answers 500 "Running on Vercel without a database". After changing variables, **Redeploy** the preview (they only apply to new deployments).
+2. **Push the branch:**
+   ```powershell
+   git push origin fred
+   ```
+   Wait for the preview to show **Ready**, then run the Part 3 checks on the branch address.
+3. **Previews share the Supabase database and PayPal Sandbox** with production. Fine for the hackathon; test orders from previews show up in the same `orders` table.
+4. **Vercel Authentication**: previews may ask you to log in to Vercel before showing the app (Settings → Deployment Protection). That's expected for you. To show a preview to someone without a Vercel login, use a production deployment instead, or switch that protection off for the demo.
+
+To make another branch the **production** site (for the judges' link): **Settings → Environments → Production → Branch Tracking**, set the branch name, save, then push to it (or **Redeploy** its latest preview and choose **Promote to Production**). Simpler for the team: merge the branch into `main` with a pull request; `main` is already production.
+
+## Product link import on the hosted app
+
+The importer fetches store pages from Vercel's servers (US data centres by default). Stores can block automated requests from cloud addresses; Takealot is known to do this at times. When that happens the app says "The store didn't let CartGuardian read this page" and the manual form keeps working. To see what a real link gives the importer from your own connection, run locally:
+
+```powershell
+npm run import:check -w @cartguardian/server -- "https://www.takealot.com/<product>/PLID12345678"
+```
+
+PayPal can't take payments in South African rand. Takealot imports come in as ZAR, which CartGuardian can evaluate, but checkout is offered only in USD, EUR, GBP, CAD or AUD. For the demo payment, change the currency and price before running the trial.
+
 ## If something fails
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | Build fails at `npm ci` | `package-lock.json` out of date | Run `npm install` locally, commit the lockfile, push |
+| Build fails with `notsup Unsupported platform for @rolldown/binding-win32-x64-msvc` | A Windows-only package listed as a normal dependency | It must be under `optionalDependencies` in `apps/web/package.json` (fixed 10 Nov) |
 | `/api/health` returns 500; **Logs** shows "Running on Vercel without a database" | Supabase variables missing | Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY`, redeploy |
-| App loads but every action says **"Origin … is not allowed"** (403) | `WEB_ORIGIN` missing or not the exact URL in the address bar | Set it to the URL exactly (https, no trailing slash), redeploy. Preview URLs differ from production: test on the production URL |
+| App loads but every action says **"Origin … is not allowed"** (403) | Opened through an address Vercel didn't give this deployment (a custom domain, or a deployment built before 10 Nov) | Add the exact address to `WEB_ORIGIN` (https, no trailing slash) and redeploy. Check that "Automatically expose System Environment Variables" is on |
 | `/api/...` returns `{"error":{"code":"NOT_FOUND"...}}` for valid routes | Rewritten path not restored | Check **Logs**; send me the request URL it shows |
 | Trial fails with `AI_RATE_LIMITED` / `AI_TIMEOUT` | Gemini free-tier load or quota | Retry; check the model chain with `npm run ai:check -- probe` locally |
 | PayPal button missing | `PAYPAL_CLIENT_ID` not set, or set after the build | Set it, redeploy |

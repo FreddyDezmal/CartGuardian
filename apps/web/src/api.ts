@@ -5,6 +5,7 @@ import type {
   EvaluationInput,
   HealthResponse,
   OrderSummary,
+  ProductImportResponse,
   PublicConfig,
 } from "@cartguardian/shared";
 
@@ -45,6 +46,8 @@ export const api = {
   config: () => call<PublicConfig>("/api/config"),
   evaluate: (input: EvaluationInput) =>
     call<{ evaluation: Evaluation }>("/api/evaluations", { method: "POST", body: JSON.stringify(input) }),
+  importProduct: (url: string) =>
+    call<ProductImportResponse>("/api/products/import", { method: "POST", body: JSON.stringify({ url }) }),
   createOrder: (evaluationId: string) =>
     call<{ order: OrderSummary }>("/api/orders", { method: "POST", body: JSON.stringify({ evaluationId }) }),
   capture: (orderId: string) =>

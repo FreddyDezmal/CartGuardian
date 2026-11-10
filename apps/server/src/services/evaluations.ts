@@ -5,6 +5,7 @@ import {
   type NormalizedEvaluationInput,
   type ValueMetrics,
   type Money,
+  type ProductContext,
 } from "@cartguardian/shared";
 import { AiError, type AiAdapter } from "../ai/index.js";
 import { applyGuardrails } from "../ai/guardrails.js";
@@ -24,6 +25,15 @@ export function computeMetrics(input: NormalizedEvaluationInput, amount: Money):
     costPerUse: totalExpectedUses && totalExpectedUses > 0 ? divideMoney(amount, totalExpectedUses) : null,
     costPerMonth: lifetimeMonths ? divideMoney(amount, lifetimeMonths) : null,
   };
+}
+
+/** Keeps only the context fields the user actually supplied. */
+function productContext(input: NormalizedEvaluationInput): { product?: ProductContext } {
+  const product: ProductContext = {};
+  for (const k of ["brand", "category", "retailer", "sourceUrl", "imageUrl"] as const) {
+    if (input[k]) product[k] = input[k];
+  }
+  return Object.keys(product).length ? { product } : {};
 }
 
 export class EvaluationService {
@@ -60,6 +70,7 @@ export class EvaluationService {
       createdAt: new Date().toISOString(),
       productName: input.productName,
       amount,
+      ...productContext(input),
       metrics,
       trial: guarded.trial,
       provider: this.ai.name,

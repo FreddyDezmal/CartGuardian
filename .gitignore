@@ -7,3 +7,6 @@ coverage/
 *.log
 .DS_Store
 .vercel/
+
+# Raw pages saved by `npm run import:check -- <link> --save x.import.html`
+*.import.html

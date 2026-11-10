@@ -5,6 +5,8 @@ import { rateLimit } from "express-rate-limit";
 import {
   CreateOrderBodySchema,
   MAX_PRICE,
+  MAX_PRICE_BY_CURRENCY,
+  PAYPAL_CURRENCIES,
   SUPPORTED_CURRENCIES,
   type HealthResponse,
   type PublicConfig,
@@ -16,20 +18,24 @@ import type { Store } from "./store.js";
 import { EvaluationService } from "./services/evaluations.js";
 import { OrderService } from "./services/orders.js";
 import { HttpError, errorHandler } from "./errors.js";
+import { ProductImportService } from "./import/service.js";
 
 export interface AppDeps {
   config: AppConfig;
   ai: AiAdapter;
   paypal: PayPalApi;
   store: Store;
+  /** Product link importer. Tests inject one with a fake fetcher. */
+  importer?: ProductImportService;
 }
 
 const startedAt = Date.now();
 
-export function createApp({ config, ai, paypal, store }: AppDeps) {
+export function createApp({ config, ai, paypal, store, importer: injectedImporter }: AppDeps) {
   const app = express();
   const evaluations = new EvaluationService(ai, store);
   const webOrigin = config.webOrigins[0] ?? "http://localhost:5173";
+  const importer = injectedImporter ?? new ProductImportService({ fetchOptions: { timeoutMs: config.importTimeoutMs } });
   const orders = new OrderService(paypal, store, { returnUrl: `${webOrigin}/?paypal=return`, cancelUrl: `${webOrigin}/?paypal=cancel` });
 
   app.disable("x-powered-by");
@@ -82,9 +88,16 @@ export function createApp({ config, ai, paypal, store }: AppDeps) {
       paypalEnvironment: "sandbox",
       aiProvider: ai.name,
       currencies: SUPPORTED_CURRENCIES,
+      paypalCurrencies: PAYPAL_CURRENCIES,
       maxPrice: MAX_PRICE,
+      maxPriceByCurrency: MAX_PRICE_BY_CURRENCY,
     };
     res.json(body);
+  });
+
+  // Fetches a public product page server-side; SSRF-guarded in import/safe-fetch.ts.
+  app.post("/api/products/import", limiter(config.rateLimits.importsPerMinute), async (req, res) => {
+    res.json(await importer.import(req.body));
   });
 
   app.post("/api/evaluations", limiter(config.rateLimits.evaluationsPerMinute), async (req, res) => {

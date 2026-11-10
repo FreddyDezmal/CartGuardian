@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { CaptureResponse, OrderSummary } from "@cartguardian/shared";
+import { PAYPAL_CURRENCIES, isPayPalCurrency, type CaptureResponse, type OrderSummary } from "@cartguardian/shared";
 import { HttpError } from "../errors.js";
 import { moneyEquals } from "../money.js";
 import type { Store } from "../store.js";
@@ -27,6 +27,14 @@ export class OrderService {
     }
     const evaluation = await this.store.getEvaluation(evaluationId);
     if (!evaluation) throw new HttpError(404, "EVALUATION_NOT_FOUND", "No evaluation with that id.");
+
+    if (!isPayPalCurrency(evaluation.amount.currency)) {
+      throw new HttpError(
+        422,
+        "CURRENCY_NOT_SUPPORTED_BY_PAYPAL",
+        `PayPal can't take payments in ${evaluation.amount.currency}. Run the trial again with a PayPal currency (${PAYPAL_CURRENCIES.join(", ")}) to check out.`,
+      );
+    }
 
     // Amount comes ONLY from the stored evaluation, never from the request.
     const amount = { currency_code: evaluation.amount.currency, value: evaluation.amount.value };

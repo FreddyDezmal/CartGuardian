@@ -30,6 +30,9 @@ export function buildUserMessage(req: TrialRequest): string {
 <untrusted_listing>
 product_name: ${neutralize(input.productName)}
 description: ${neutralize(input.description || "(none provided)")}
+brand: ${neutralize(input.brand || "(not given)")}
+category: ${neutralize(input.category || "(not given)")}
+store: ${neutralize(input.retailer || "(not given)")}
 </untrusted_listing>
 
 <user_context>

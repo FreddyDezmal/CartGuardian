@@ -22,6 +22,7 @@ const ERROR_COPY: Record<string, string> = {
   AMOUNT_MISMATCH: "The amount PayPal reported didn't match the price on trial, so the purchase wasn't recorded.",
   PAYPAL_TIMEOUT: "PayPal took too long to respond. It's safe to try again; you won't be charged twice.",
   PAYPAL_NOT_CONFIGURED: "Checkout is off: the server has no PayPal Sandbox credentials.",
+  CURRENCY_NOT_SUPPORTED_BY_PAYPAL: "PayPal can't take payments in this currency. Run the trial again in a currency PayPal supports.",
 };
 
 function describe(err: unknown): { message: string; debugId?: string } {
@@ -67,7 +68,15 @@ function Buttons({ evaluation, onState }: { evaluation: Evaluation; onState: (s:
   );
 }
 
-export function Checkout({ evaluation, clientId }: { evaluation: Evaluation; clientId: string | null }) {
+export function Checkout({
+  evaluation,
+  clientId,
+  paypalCurrencies,
+}: {
+  evaluation: Evaluation;
+  clientId: string | null;
+  paypalCurrencies: readonly string[];
+}) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const price = new Intl.NumberFormat(undefined, { style: "currency", currency: evaluation.amount.currency }).format(Number(evaluation.amount.value));
 
@@ -92,10 +101,18 @@ export function Checkout({ evaluation, clientId }: { evaluation: Evaluation; cli
     <section className="checkout">
       <div className="checkout-head">
         <h2>Decided to buy?</h2>
-        <p>Pay {price} with PayPal Sandbox. The amount is locked to the price on trial.</p>
+        {paypalCurrencies.includes(evaluation.amount.currency) && (
+          <p>Pay {price} with PayPal Sandbox. The amount is locked to the price on trial.</p>
+        )}
       </div>
 
-      {!clientId ? (
+      {!paypalCurrencies.includes(evaluation.amount.currency) ? (
+        <p className="notice">
+          PayPal can't take payments in {evaluation.amount.currency}, so checkout isn't available for this trial. To try the Sandbox
+          payment, change the currency to one PayPal supports ({paypalCurrencies.join(", ")}) with a matching price, and run the trial
+          again. CartGuardian doesn't convert currencies for you.
+        </p>
+      ) : !clientId ? (
         <p className="notice">Checkout is off: set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in apps/server/.env, then restart the server.</p>
       ) : (
         <PayPalProvider clientId={clientId} environment="sandbox" components={["paypal-payments"]} pageType="checkout">
