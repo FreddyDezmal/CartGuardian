@@ -70,6 +70,16 @@ export class ProductImportService {
       throw new HttpError(502, "IMPORT_UNREACHABLE", `CartGuardian couldn't load that page. ${MANUAL}`);
     }
 
+    // Stores send links to products they no longer list to their home page.
+    // Importing that page would fill the form with the store's own name.
+    if (isHomePage(page.url) && !isHomePage(target)) {
+      throw new HttpError(
+        422,
+        "IMPORT_PRODUCT_UNAVAILABLE",
+        `The store sent CartGuardian to its home page instead of the product, so it may no longer be listed. Check the link, or ${MANUAL.charAt(0).toLowerCase()}${MANUAL.slice(1)}`,
+      );
+    }
+
     // A redirect can land on another store; let that store's adapter handle it.
     const finalAdapter = retailerFor(page.url);
     const extraction = extractProduct(page.html, page.url);
@@ -117,3 +127,5 @@ export class ProductImportService {
 function pickDefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "")) as Partial<T>;
 }
+
+const isHomePage = (u: URL) => u.pathname === "/" || u.pathname === "";
